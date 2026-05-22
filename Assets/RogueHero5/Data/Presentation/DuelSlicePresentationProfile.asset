@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d27278824e28b1e4f831da6b57a1c1eb, type: 3}
+  m_Name: DuelSlicePresentationProfile
+  m_EditorClassIdentifier: RogueHero5.Runtime::RogueHero5.DuelSlicePresentationProfile
+  abilityPresentations:
+  - {fileID: 11400000, guid: 596ccac6d8be1154aab3a66f8a431746, type: 2}
+  - {fileID: 11400000, guid: 7dc3e8d6ed640bf4d9a0ecc23f72147e, type: 2}
+  - {fileID: 11400000, guid: 60fbd3805e09d5743af0196d6e2abf2d, type: 2}
+  - {fileID: 11400000, guid: 4e20b7e23d690d142b1e515ded6e04ca, type: 2}
+  - {fileID: 11400000, guid: 2ffe8e9380891b44d89adde928f98917, type: 2}
+  bossAttacks:
+  - {fileID: 11400000, guid: da33243870ceb9043960255eb1f76bb8, type: 2}
+  - {fileID: 11400000, guid: affab1bbd06bf9b48acc84d5df291105, type: 2}
+  - {fileID: 11400000, guid: 17d3b22c52e21934788ca32f5a465045, type: 2}
+  arenaFloorMaterial: {fileID: 2100000, guid: 2738de3ba2d97724aa39114161479d2a, type: 2}
+  arenaBorderMaterial: {fileID: 2100000, guid: 1d1a86838b09c8b4e81647ec50004bb5, type: 2}
+  telegraphMaterial: {fileID: 2100000, guid: 70076a34be7991046a4fad2a5e07ced1, type: 2}
+  playerMaterial: {fileID: 2100000, guid: 04949dde0071ab740bbda1dcb518fb0e, type: 2}
+  bossMaterial: {fileID: 2100000, guid: 5892960c787b9054fa78bd02d3c94813, type: 2}
+  ambientLoop: {fileID: 0}
+  victorySound: {fileID: 8300000, guid: 425fb0d87d65283498c260ba936bb993, type: 3}
+  defeatSound: {fileID: 8300000, guid: 425fb0d87d65283498c260ba936bb993, type: 3}
+  arenaRadius: 12
+  ambientColor: {r: 0.06, g: 0.08, b: 0.11, a: 1}

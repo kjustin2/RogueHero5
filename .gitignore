@@ -42,6 +42,9 @@
 # Visual Studio cache directory
 .vs/
 
+# JetBrains IDE project directory
+.idea/
+
 # Gradle cache directory
 .gradle/
 
@@ -51,6 +54,7 @@ ExportedObj/
 *.csproj
 *.unityproj
 *.sln
+*.slnx
 *.suo
 *.tmp
 *.user
@@ -86,6 +90,9 @@ crashlytics-build.properties
 
 # TestRunner generated files
 InitTestScene*.unity*
+/[Tt]est[Rr]esults/
+/[Tt]est[Rr]esults*.xml
+/[Cc]overage[Rr]esults/
 
 # Addressables default ignores, before user customizations
 /ServerData
@@ -98,6 +105,8 @@ InitTestScene*.unity*
 /[Aa]ssets/AddressableAssetsData/*/*.bin*
 
 # Visual Scripting auto-generated files
+/[Aa]ssets/Unity.VisualScripting.Generated/
+/[Aa]ssets/Unity.VisualScripting.Generated.meta
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
 /[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
@@ -105,3 +114,15 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Unity-generated caches and local package settings
+/[Aa]ssets/[Ss]ceneDependencyCache*
+/[Pp]roject[Ss]ettings/[Pp]ackages/com.unity.ai.assistant/
+
+# Asset generation scratch output; imported Unity assets belong under Assets/.
+/GeneratedAssets/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini

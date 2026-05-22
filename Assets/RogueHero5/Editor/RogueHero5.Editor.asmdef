@@ -1,0 +1,20 @@
+{
+  "name": "RogueHero5.Editor",
+  "rootNamespace": "RogueHero5.Editor",
+  "references": [
+    "RogueHero5.Runtime",
+    "UnityEngine.UI",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

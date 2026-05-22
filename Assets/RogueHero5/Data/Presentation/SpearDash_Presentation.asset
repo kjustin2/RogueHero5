@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1fca75975f9ca144f8471ad8f8a7fed1, type: 3}
+  m_Name: SpearDash_Presentation
+  m_EditorClassIdentifier: RogueHero5.Runtime::RogueHero5.AbilityPresentationDefinition
+  slot: 0
+  displayName: Spear Dash
+  icon: {fileID: 21300000, guid: ef982af6e4f56e8458afed75cb490c70, type: 3}
+  primaryColor: {r: 0.2, g: 0.72, b: 1, a: 1}
+  secondaryColor: {r: 0.65, g: 0.95, b: 1, a: 1}
+  castSound: {fileID: 8300000, guid: 425fb0d87d65283498c260ba936bb993, type: 3}
+  impactSound: {fileID: 8300000, guid: 425fb0d87d65283498c260ba936bb993, type: 3}
+  castFlashRadius: 0.8
+  impactFlashRadius: 1.15
+  trailSeconds: 0.18
+  hitStopSeconds: 0.035
+  cameraShake: 0.08
+  fovKick: 0.85

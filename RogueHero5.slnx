@@ -1,2 +1,6 @@
 ﻿<Solution>
+  <Project Path="RogueHero5.Tests.EditMode.csproj" />
+  <Project Path="RogueHero5.Runtime.csproj" />
+  <Project Path="RogueHero5.Tests.PlayMode.csproj" />
+  <Project Path="RogueHero5.Editor.csproj" />
 </Solution>

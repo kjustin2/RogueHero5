@@ -1,0 +1,19 @@
+{
+  "name": "RogueHero5.Tests.PlayMode",
+  "rootNamespace": "RogueHero5.Tests",
+  "references": [
+    "RogueHero5.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
