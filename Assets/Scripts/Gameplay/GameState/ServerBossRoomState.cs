@@ -55,8 +55,8 @@ namespace Unity.BossRoom.Gameplay.GameState
         private const float k_WinDelay = 7.0f;
         private const float k_LoseDelay = 2.5f;
         const string k_DuelBossSubscene = "DungeonBossRoom";
-        static readonly Vector3 k_PvpLeftPosition = new Vector3(103.5f, 0f, 35.7f);
-        static readonly Vector3 k_PvpRightPosition = new Vector3(113.5f, 0f, 35.7f);
+        const string k_DuelArenaFloorPrefix = "boss_floor";
+        static readonly Vector3 k_FallbackDuelArenaCenterPosition = new Vector3(104f, 0f, 20f);
 
         /// <summary>
         /// Has the ServerBossRoomState already hit its initial spawn? (i.e. spawned players following load from character select).
@@ -569,25 +569,28 @@ namespace Unity.BossRoom.Gameplay.GameState
                     return;
                 }
 
-                var bossTransform = boss.physicsWrapper.Transform;
-                var playerPosition = SampleNavMeshPosition(bossTransform.position - (bossTransform.forward * 7f));
-                if (Vector3.Distance(playerPosition, bossTransform.position) < 3f)
-                {
-                    playerPosition = SampleNavMeshPosition(bossTransform.position - (Vector3.forward * 7f));
-                }
+                var arenaPlacement = GetDuelArenaPlacement();
+                var playerPosition = SampleArenaNavMeshPosition(arenaPlacement.LeftPosition, "campaign player");
+                var bossPosition = SampleArenaNavMeshPosition(arenaPlacement.RightPosition, "campaign boss");
 
+                boss.physicsWrapper.Transform.SetPositionAndRotation(
+                    bossPosition,
+                    LookAtFlat(bossPosition, playerPosition));
                 playerCharacters[0].physicsWrapper.Transform.SetPositionAndRotation(
                     playerPosition,
-                    LookAtFlat(playerPosition, bossTransform.position));
-                Debug.Log($"Duel campaign positioned player at {playerPosition} near boss at {bossTransform.position}.");
+                    LookAtFlat(playerPosition, bossPosition));
+                Debug.Log(
+                    $"Duel campaign positioned player at {playerPosition} and boss at {bossPosition} " +
+                    $"using {arenaPlacement.Source}.");
             }
             else if (m_DuelSessionState.IsPvp)
             {
-                var leftPosition = SampleNavMeshPosition(k_PvpLeftPosition);
-                var rightPosition = SampleNavMeshPosition(k_PvpRightPosition);
+                var arenaPlacement = GetDuelArenaPlacement();
+                var leftPosition = SampleArenaNavMeshPosition(arenaPlacement.LeftPosition, "PvP left player");
+                var rightPosition = SampleArenaNavMeshPosition(arenaPlacement.RightPosition, "PvP right player");
                 playerCharacters[0].physicsWrapper.Transform.SetPositionAndRotation(leftPosition, LookAtFlat(leftPosition, rightPosition));
                 playerCharacters[1].physicsWrapper.Transform.SetPositionAndRotation(rightPosition, LookAtFlat(rightPosition, leftPosition));
-                Debug.Log($"Duel PvP positioned players at {leftPosition} and {rightPosition}.");
+                Debug.Log($"Duel PvP positioned players at {leftPosition} and {rightPosition} using {arenaPlacement.Source}.");
             }
 
             m_DuelPlayersPositioned = true;
@@ -628,9 +631,79 @@ namespace Unity.BossRoom.Gameplay.GameState
             boss.physicsWrapper.Transform.SetPositionAndRotation(bossPosition, LookAtFlat(bossPosition, lookAtPosition));
         }
 
-        static Vector3 SampleNavMeshPosition(Vector3 position)
+        static Vector3 SampleArenaNavMeshPosition(Vector3 position, string label)
         {
-            return NavMesh.SamplePosition(position, out var hit, 4f, NavMesh.AllAreas) ? hit.position : position;
+            if (NavMesh.SamplePosition(position, out var hit, 12f, NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
+
+            Debug.LogWarning($"Duel arena could not sample NavMesh for {label} near {position}; using unsampled position.");
+            return position;
+        }
+
+        static DuelArenaPlacement GetDuelArenaPlacement()
+        {
+            if (TryGetDuelArenaFloorBounds(out var bounds))
+            {
+                var center = new Vector3(bounds.center.x, 0f, bounds.center.z);
+                var spacing = Mathf.Clamp(bounds.extents.x * 0.45f, 8f, 16f);
+                return new DuelArenaPlacement(
+                    center,
+                    center + Vector3.left * spacing,
+                    center + Vector3.right * spacing,
+                    $"{k_DuelArenaFloorPrefix} bounds center={center}, spacing={spacing:0.0}");
+            }
+
+            return new DuelArenaPlacement(
+                k_FallbackDuelArenaCenterPosition,
+                k_FallbackDuelArenaCenterPosition + Vector3.left * 10f,
+                k_FallbackDuelArenaCenterPosition + Vector3.right * 10f,
+                $"fallback arena center {k_FallbackDuelArenaCenterPosition}");
+        }
+
+        static bool TryGetDuelArenaFloorBounds(out Bounds bounds)
+        {
+            var hasBounds = false;
+            bounds = default;
+
+            foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            {
+                if (!renderer.enabled ||
+                    !renderer.gameObject.activeInHierarchy ||
+                    !renderer.name.StartsWith(k_DuelArenaFloorPrefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            return hasBounds;
+        }
+
+        readonly struct DuelArenaPlacement
+        {
+            public DuelArenaPlacement(Vector3 center, Vector3 leftPosition, Vector3 rightPosition, string source)
+            {
+                Center = center;
+                LeftPosition = leftPosition;
+                RightPosition = rightPosition;
+                Source = source;
+            }
+
+            public Vector3 Center { get; }
+            public Vector3 LeftPosition { get; }
+            public Vector3 RightPosition { get; }
+            public string Source { get; }
         }
 
         static Quaternion LookAtFlat(Vector3 from, Vector3 to)
