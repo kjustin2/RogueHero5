@@ -20,6 +20,20 @@ namespace Unity.BossRoom.Gameplay.GameState
             Camera.onPreCull -= OnCameraPreCull;
             Camera.onPreCull += OnCameraPreCull;
             s_DuelArenaLoaded = false;
+            ApplyToLoadedDuelScene();
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void ApplyToLoadedDuelScene()
+        {
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (scene.isLoaded && scene.name == k_DuelBossSubscene)
+                {
+                    OnSceneLoaded(scene, LoadSceneMode.Additive);
+                }
+            }
         }
 
         static void OnSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
