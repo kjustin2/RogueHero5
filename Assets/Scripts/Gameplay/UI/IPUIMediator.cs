@@ -90,7 +90,11 @@ namespace Unity.BossRoom.Gameplay.UI
 
             m_DuelSessionState.StartPvp();
             m_ConnectionManager.MaxConnectedPlayers = DuelSessionState.PvpMaxPlayers;
-            m_SignInSpinner.SetActive(true);
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(true);
+            }
+
             m_ConnectionManager.StartHostIp(m_PlayerNameLabel.text, ip, portNum);
         }
 
@@ -106,7 +110,10 @@ namespace Unity.BossRoom.Gameplay.UI
 
             m_DuelSessionState.StartPvp();
             m_ConnectionManager.MaxConnectedPlayers = DuelSessionState.PvpMaxPlayers;
-            m_SignInSpinner.SetActive(true);
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(true);
+            }
 
             m_ConnectionManager.StartClientIp(m_PlayerNameLabel.text, ip, portNum);
 
@@ -121,7 +128,10 @@ namespace Unity.BossRoom.Gameplay.UI
 
         public void DisableSignInSpinner()
         {
-            m_SignInSpinner.SetActive(false);
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(false);
+            }
         }
 
         void RequestShutdown()

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Unity.BossRoom.ConnectionManagement;
 using Unity.BossRoom.Gameplay.GameplayObjects;
 using Unity.BossRoom.Gameplay.GameplayObjects.Character;
+using Unity.BossRoom.Gameplay.UI;
 using Unity.BossRoom.Gameplay.Messages;
 using Unity.BossRoom.Infrastructure;
 using Unity.BossRoom.Utils;
@@ -60,7 +61,10 @@ namespace Unity.BossRoom.Gameplay.GameState
         // Wait time constants for switching to post game after the game is won or lost
         private const float k_WinDelay = 7.0f;
         private const float k_LoseDelay = 2.5f;
+        const float k_DuelResultDelay = 1.5f;
         const string k_DuelBossSubscene = "DungeonBossRoom";
+
+        static ServerBossRoomState s_ActiveInstance;
 
         /// <summary>
         /// Has the ServerBossRoomState already hit its initial spawn? (i.e. spawned players following load from character select).
@@ -91,6 +95,7 @@ namespace Unity.BossRoom.Gameplay.GameState
                 enabled = false;
                 return;
             }
+            s_ActiveInstance = this;
             m_PersistentGameState.Reset();
             m_ConfiguredCampaignBossIds.Clear();
             m_DuelPlayersPositioned = false;
@@ -111,6 +116,11 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         void OnNetworkDespawn()
         {
+            if (s_ActiveInstance == this)
+            {
+                s_ActiveInstance = null;
+            }
+
             if (m_LifeStateChangedEventMessageSubscriber != null)
             {
                 m_LifeStateChangedEventMessageSubscriber.Unsubscribe(OnLifeStateChangedEventMessage);
@@ -123,6 +133,11 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         protected override void OnDestroy()
         {
+            if (s_ActiveInstance == this)
+            {
+                s_ActiveInstance = null;
+            }
+
             if (m_LifeStateChangedEventMessageSubscriber != null)
             {
                 m_LifeStateChangedEventMessageSubscriber.Unsubscribe(OnLifeStateChangedEventMessage);
@@ -212,34 +227,13 @@ namespace Unity.BossRoom.Gameplay.GameState
             PrepareDuelSceneLoading();
             DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetSceneByName(ActiveState.ToString()));
 
-            var stopWaitingAt = Time.time + 3f;
-            float nextWarningTime = Time.time + 1.5f;
-            while (!IsSceneLoaded(k_DuelBossSubscene) && Time.time < stopWaitingAt)
-            {
-                if (Time.time >= nextWarningTime)
-                {
-                    Debug.LogWarning($"Duel arena is waiting for '{k_DuelBossSubscene}', but the runtime arena is already available.");
-                    nextWarningTime = Time.time + 1.5f;
-                    if (!m_DuelBossSceneLoadRequested)
-                    {
-                        StartCoroutine(RequestDuelBossRoomLoad());
-                    }
-                }
-
-                yield return null;
-            }
-
-            if (!IsSceneLoaded(k_DuelBossSubscene))
-            {
-                Debug.LogWarning($"Duel arena continuing without '{k_DuelBossSubscene}' because the runtime vertical-slice arena is ready.");
-            }
-
             yield return null;
 
             DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetActiveScene());
+            ResetConnectedPlayerFightData();
             InitialSpawnDone = true;
             SpawnInitialPlayers(false);
-            Debug.Log($"Duel arena spawned {NetworkManager.Singleton.ConnectedClients.Count} player(s) after arena scene ready={IsSceneLoaded(k_DuelBossSubscene)}.");
+            Debug.Log($"Duel arena spawned {NetworkManager.Singleton.ConnectedClients.Count} player(s) into the runtime vertical-slice arena.");
             StartCoroutine(ConfigureDuelEncounter());
         }
 
@@ -388,7 +382,20 @@ namespace Unity.BossRoom.Gameplay.GameState
             }
 
             m_GameOverTriggered = true;
+            if (EnsureDuelModeFromSessionSettings())
+            {
+                StartCoroutine(CoroDuelResult(Mathf.Min(wait, k_DuelResultDelay), winState));
+                return;
+            }
+
             StartCoroutine(CoroGameOver(wait, winState));
+        }
+
+        IEnumerator CoroDuelResult(float wait, WinState winState)
+        {
+            m_PersistentGameState.SetWinState(winState);
+            yield return new WaitForSeconds(wait);
+            DuelResultOverlay.Show(winState);
         }
 
         IEnumerator CoroGameOver(float wait, WinState winState)
@@ -399,6 +406,28 @@ namespace Unity.BossRoom.Gameplay.GameState
             yield return new WaitForSeconds(wait);
 
             SceneLoaderWrapper.Instance.LoadScene("PostGame", useNetworkSceneManager: true);
+        }
+
+        public static void RestartActiveVerticalSlice()
+        {
+            if (s_ActiveInstance)
+            {
+                s_ActiveInstance.RestartVerticalSlice();
+            }
+        }
+
+        public void RestartVerticalSlice()
+        {
+            if (!NetworkManager.Singleton || !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            DuelResultOverlay.Hide();
+            m_DuelSessionState.RestartCampaign();
+            m_GameOverTriggered = false;
+            ResetConnectedPlayerFightData();
+            SceneLoaderWrapper.Instance.LoadScene("BossRoom", useNetworkSceneManager: true);
         }
 
         bool EnsureDuelModeFromSessionSettings()
@@ -445,10 +474,7 @@ namespace Unity.BossRoom.Gameplay.GameState
                 }
             }
 
-            if (!IsSceneLoaded(k_DuelBossSubscene))
-            {
-                StartCoroutine(RequestDuelBossRoomLoad());
-            }
+            Debug.Log("Duel arena using runtime vertical-slice map only; additive dungeon loaders are disabled.");
         }
 
         IEnumerator RequestDuelBossRoomLoad()
@@ -711,6 +737,30 @@ namespace Unity.BossRoom.Gameplay.GameState
             var bossPosition = boss.physicsWrapper.Transform.position;
             var lookAtPosition = players[0].physicsWrapper.Transform.position;
             boss.physicsWrapper.Transform.SetPositionAndRotation(bossPosition, LookAtFlat(bossPosition, lookAtPosition));
+        }
+
+        void ResetConnectedPlayerFightData()
+        {
+            if (!NetworkManager.Singleton)
+            {
+                return;
+            }
+
+            foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+            {
+                var sessionPlayerData = SessionManager<SessionPlayerData>.Instance.GetPlayerData(clientId);
+                if (!sessionPlayerData.HasValue)
+                {
+                    continue;
+                }
+
+                var playerData = sessionPlayerData.Value;
+                playerData.Reinitialize();
+                playerData.CurrentHitPoints = 0;
+                playerData.PlayerPosition = Vector3.zero;
+                playerData.PlayerRotation = Quaternion.identity;
+                SessionManager<SessionPlayerData>.Instance.SetPlayerData(clientId, playerData);
+            }
         }
 
         static Vector3 SampleArenaNavMeshPosition(Vector3 position, string label)

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Unity.BossRoom.Gameplay.GameState;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -12,7 +13,13 @@ namespace Unity.BossRoom.Editor
     public static class DuelArenaVerifier
     {
         const string k_BaseScenePath = "Assets/Scenes/BossRoom.unity";
-        const string k_ArenaScenePath = "Assets/Scenes/BossRoom/DungeonBossRoom.unity";
+        const string k_MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
+        static readonly string[] k_EnabledBuildScenes =
+        {
+            "Assets/Scenes/Startup.unity",
+            "Assets/Scenes/MainMenu.unity",
+            "Assets/Scenes/BossRoom.unity"
+        };
 
         [MenuItem("Boss Room/Verify Duel Arena")]
         public static void RunFromMenu()
@@ -36,18 +43,17 @@ namespace Unity.BossRoom.Editor
 
         static void Verify()
         {
+            RequireTinyBuildSettings();
+            RequireMainMenuDefaultAvatar();
+
             EditorSceneManager.OpenScene(k_BaseScenePath, OpenSceneMode.Single);
-            EditorSceneManager.OpenScene(k_ArenaScenePath, OpenSceneMode.Additive);
 
             RequireSceneLoaded("BossRoom");
-            RequireSceneLoaded("DungeonBossRoom");
 
-            var arenaRoot = RequireObject("BossRoom");
-            var staticObjects = RequireObject("BossRoomStaticNetworkObjects");
             var bossState = RequireObject("BossRoomState");
             var runtimeArena = DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetSceneByName("BossRoom"));
 
-            var renderers = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
+            var renderers = runtimeArena.GetComponentsInChildren<MeshRenderer>(true);
             var visibleRendererCount = 0;
             var hasVisibleBounds = false;
             var visibleBounds = new Bounds();
@@ -70,18 +76,18 @@ namespace Unity.BossRoom.Editor
                 }
             }
 
-            if (!hasVisibleBounds || visibleRendererCount < 50)
+            if (!hasVisibleBounds || visibleRendererCount < 12)
             {
-                throw new InvalidOperationException($"Expected a populated arena, found only {visibleRendererCount} visible mesh renderers.");
+                throw new InvalidOperationException($"Expected the tiny runtime arena, found only {visibleRendererCount} visible mesh renderers.");
             }
 
             var placement = DuelArenaRuntimeScaffold.Placement;
             RequireNavMesh(placement.PlayerPosition, "player");
             RequireNavMesh(placement.OpponentPosition, "opponent");
 
-            if (!visibleBounds.Contains(runtimeArena.position))
+            if (!visibleBounds.Contains(placement.PlayerPosition) || !visibleBounds.Contains(placement.OpponentPosition))
             {
-                throw new InvalidOperationException($"Runtime arena {runtimeArena.position} is outside visible arena bounds {visibleBounds}.");
+                throw new InvalidOperationException($"Runtime arena bounds {visibleBounds} do not contain both duel spawn positions.");
             }
 
             var campaignBossPrefab = FindSerializedPropertyOnComponents(bossState, "m_CampaignBossPrefab");
@@ -91,9 +97,40 @@ namespace Unity.BossRoom.Editor
             }
 
             Debug.Log(
-                $"Duel arena verification passed. ArenaRoot={arenaRoot.name}, StaticRoot={staticObjects.name}, " +
-                $"RuntimeArena={runtimeArena.position}, CampaignBossPrefab={campaignBossPrefab.objectReferenceValue.name}, " +
+                $"Tiny duel slice verification passed. RuntimeArena={runtimeArena.position}, CampaignBossPrefab={campaignBossPrefab.objectReferenceValue.name}, " +
                 $"VisibleRenderers={visibleRendererCount}, Bounds={visibleBounds}.");
+        }
+
+        static void RequireTinyBuildSettings()
+        {
+            var enabledScenes = EditorBuildSettings.scenes
+                .Where(scene => scene.enabled)
+                .Select(scene => scene.path)
+                .ToArray();
+
+            if (!enabledScenes.SequenceEqual(k_EnabledBuildScenes))
+            {
+                throw new InvalidOperationException(
+                    $"Expected enabled build scenes [{string.Join(", ", k_EnabledBuildScenes)}], " +
+                    $"found [{string.Join(", ", enabledScenes)}].");
+            }
+        }
+
+        static void RequireMainMenuDefaultAvatar()
+        {
+            EditorSceneManager.OpenScene(k_MainMenuScenePath, OpenSceneMode.Single);
+
+            var menuState = RequireObject("MainMenuState");
+            var defaultAvatar = FindSerializedPropertyOnComponents(menuState, "m_DefaultCampaignAvatar");
+            if (defaultAvatar == null || defaultAvatar.objectReferenceValue == null)
+            {
+                throw new MissingReferenceException("MainMenuState is missing m_DefaultCampaignAvatar for fixed TankBoy campaign startup.");
+            }
+
+            if (defaultAvatar.objectReferenceValue.name != "TankBoy")
+            {
+                throw new InvalidOperationException($"Expected TankBoy as the fixed campaign avatar, found {defaultAvatar.objectReferenceValue.name}.");
+            }
         }
 
         static void RequireNavMesh(Vector3 position, string label)
@@ -143,5 +180,6 @@ namespace Unity.BossRoom.Editor
 
             return gameObject;
         }
+
     }
 }

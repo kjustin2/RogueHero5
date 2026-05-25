@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Unity.BossRoom.Gameplay.Actions;
 using Unity.BossRoom.Gameplay.Configuration;
 using Unity.BossRoom.Gameplay.GameplayObjects;
+using Unity.BossRoom.Infrastructure;
 using UnityEngine;
 using Action = Unity.BossRoom.Gameplay.Actions.Action;
+using Avatar = Unity.BossRoom.Gameplay.Configuration.Avatar;
 
 namespace Unity.BossRoom.Gameplay.GameState
 {
@@ -22,6 +24,8 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         readonly Action[] m_CampaignLoadout = new Action[LoadoutSlotCount];
         readonly List<Action> m_LastDraft = new List<Action>(LoadoutSlotCount);
+        Avatar m_CampaignAvatar;
+        NetworkGuid m_CampaignAvatarGuid;
 
         public static DuelSessionState Instance { get; private set; }
 
@@ -44,12 +48,21 @@ namespace Unity.BossRoom.Gameplay.GameState
             Instance = this;
         }
 
-        public void StartCampaign()
+        public void StartCampaign(Avatar campaignAvatar = null)
         {
             Mode = DuelGameMode.Campaign;
             CampaignBossLevel = 1;
             ClearCampaignLoadout();
             m_LastDraft.Clear();
+
+            if (campaignAvatar != null)
+            {
+                SetCampaignAvatar(campaignAvatar);
+            }
+            else if (m_CampaignAvatar != null)
+            {
+                InitializeCampaignLoadout(m_CampaignAvatar.CharacterClass);
+            }
         }
 
         public void StartPvp()
@@ -58,6 +71,7 @@ namespace Unity.BossRoom.Gameplay.GameState
             CampaignBossLevel = 1;
             ClearCampaignLoadout();
             m_LastDraft.Clear();
+            ClearCampaignAvatar();
         }
 
         public void ResetMode()
@@ -66,6 +80,30 @@ namespace Unity.BossRoom.Gameplay.GameState
             CampaignBossLevel = 1;
             ClearCampaignLoadout();
             m_LastDraft.Clear();
+            ClearCampaignAvatar();
+        }
+
+        public void RestartCampaign()
+        {
+            StartCampaign(m_CampaignAvatar);
+        }
+
+        public void SetCampaignAvatar(Avatar campaignAvatar)
+        {
+            if (campaignAvatar == null)
+            {
+                return;
+            }
+
+            m_CampaignAvatar = campaignAvatar;
+            m_CampaignAvatarGuid = campaignAvatar.Guid.ToNetworkGuid();
+            InitializeCampaignLoadout(campaignAvatar.CharacterClass);
+        }
+
+        public bool TryGetCampaignAvatarGuid(out NetworkGuid avatarGuid)
+        {
+            avatarGuid = m_CampaignAvatarGuid;
+            return IsCampaign && m_CampaignAvatarGuid.ToGuid() != Guid.Empty;
         }
 
         public void InitializeCampaignLoadout(CharacterClass characterClass)
@@ -207,6 +245,12 @@ namespace Unity.BossRoom.Gameplay.GameState
             {
                 m_CampaignLoadout[i] = null;
             }
+        }
+
+        void ClearCampaignAvatar()
+        {
+            m_CampaignAvatar = null;
+            m_CampaignAvatarGuid = default;
         }
 
         static void Shuffle<T>(IList<T> items)

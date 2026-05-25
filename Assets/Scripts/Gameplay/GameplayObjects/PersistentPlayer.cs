@@ -1,6 +1,7 @@
 using System;
 using Unity.BossRoom.ConnectionManagement;
 using Unity.BossRoom.Gameplay.GameplayObjects.Character;
+using Unity.BossRoom.Gameplay.GameState;
 using Unity.BossRoom.Utils;
 using Unity.Multiplayer.Samples.BossRoom;
 using Unity.Netcode;
@@ -51,6 +52,13 @@ namespace Unity.BossRoom.Gameplay.GameplayObjects
                     if (playerData.HasCharacterSpawned)
                     {
                         m_NetworkAvatarGuidState.AvatarGuid.Value = playerData.AvatarNetworkGuid;
+                    }
+                    else if (DuelSessionState.Instance != null &&
+                             DuelSessionState.Instance.TryGetCampaignAvatarGuid(out var campaignAvatarGuid))
+                    {
+                        m_NetworkAvatarGuidState.AvatarGuid.Value = campaignAvatarGuid;
+                        playerData.AvatarNetworkGuid = campaignAvatarGuid;
+                        SessionManager<SessionPlayerData>.Instance.SetPlayerData(OwnerClientId, playerData);
                     }
                     else
                     {

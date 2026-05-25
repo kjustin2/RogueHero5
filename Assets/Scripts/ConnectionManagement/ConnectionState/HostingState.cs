@@ -25,9 +25,8 @@ namespace Unity.BossRoom.ConnectionManagement
 
         public override void Enter()
         {
-            //The "BossRoom" server always advances to CharSelect immediately on start. Different games
-            //may do this differently.
-            SceneLoaderWrapper.Instance.LoadScene("CharSelect", useNetworkSceneManager: true);
+            var nextScene = m_ConnectionManager.MaxConnectedPlayers == 1 ? "BossRoom" : "CharSelect";
+            SceneLoaderWrapper.Instance.LoadScene(nextScene, useNetworkSceneManager: true);
 
             if (m_MultiplayerServicesFacade.CurrentUnitySession != null)
             {

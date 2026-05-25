@@ -11,9 +11,9 @@ namespace Unity.BossRoom.Gameplay.GameState
         public const string CameraAnchorName = "DuelArenaCameraAnchor";
 
         static readonly Vector3 k_Center = new Vector3(0f, 0f, 0f);
-        static readonly Vector3 k_PlayerPosition = new Vector3(-8f, 0f, 0f);
-        static readonly Vector3 k_OpponentPosition = new Vector3(8f, 0f, 0f);
-        static readonly Vector3 k_ArenaSize = new Vector3(30f, 0.35f, 22f);
+        static readonly Vector3 k_PlayerPosition = new Vector3(-5f, 0f, 0f);
+        static readonly Vector3 k_OpponentPosition = new Vector3(5f, 0f, 0f);
+        static readonly Vector3 k_ArenaSize = new Vector3(18f, 0.35f, 14f);
 
         static GameObject s_ArenaRoot;
         static GameObject s_CameraAnchor;
@@ -92,11 +92,11 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         static void CreateFloorTiles(Material stoneMaterial, Material accentMaterial, int groundLayer)
         {
-            const int columns = 5;
+            const int columns = 3;
             const int rows = 3;
-            var tileSize = new Vector3(5.35f, 0.08f, 5.35f);
-            var startX = -10.7f;
-            var startZ = -5.35f;
+            var tileSize = new Vector3(4.2f, 0.08f, 4.2f);
+            var startX = -4.2f;
+            var startZ = -4.2f;
 
             for (int z = 0; z < rows; z++)
             {
@@ -105,7 +105,7 @@ namespace Unity.BossRoom.Gameplay.GameState
                     var material = (x + z) % 2 == 0 ? stoneMaterial : accentMaterial;
                     var tile = CreateCube(
                         $"DuelArenaTile_{x}_{z}",
-                        new Vector3(startX + (x * 5.35f), 0.03f, startZ + (z * 5.35f)),
+                        new Vector3(startX + (x * 4.2f), 0.03f, startZ + (z * 4.2f)),
                         tileSize,
                         material,
                         s_ArenaRoot.transform);
@@ -117,18 +117,18 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         static void CreateArenaRim(Material rimMaterial)
         {
-            CreateCube("DuelArenaNorthWall", new Vector3(0f, 0.55f, 11.3f), new Vector3(31f, 1.1f, 0.7f), rimMaterial, s_ArenaRoot.transform);
-            CreateCube("DuelArenaSouthWall", new Vector3(0f, 0.55f, -11.3f), new Vector3(31f, 1.1f, 0.7f), rimMaterial, s_ArenaRoot.transform);
-            CreateCube("DuelArenaWestWall", new Vector3(-15.3f, 0.55f, 0f), new Vector3(0.7f, 1.1f, 22f), rimMaterial, s_ArenaRoot.transform);
-            CreateCube("DuelArenaEastWall", new Vector3(15.3f, 0.55f, 0f), new Vector3(0.7f, 1.1f, 22f), rimMaterial, s_ArenaRoot.transform);
+            CreateCube("DuelArenaNorthWall", new Vector3(0f, 0.55f, 7.3f), new Vector3(19f, 1.1f, 0.7f), rimMaterial, s_ArenaRoot.transform);
+            CreateCube("DuelArenaSouthWall", new Vector3(0f, 0.55f, -7.3f), new Vector3(19f, 1.1f, 0.7f), rimMaterial, s_ArenaRoot.transform);
+            CreateCube("DuelArenaWestWall", new Vector3(-9.3f, 0.55f, 0f), new Vector3(0.7f, 1.1f, 14f), rimMaterial, s_ArenaRoot.transform);
+            CreateCube("DuelArenaEastWall", new Vector3(9.3f, 0.55f, 0f), new Vector3(0.7f, 1.1f, 14f), rimMaterial, s_ArenaRoot.transform);
         }
 
         static void CreateCornerBeacons(Material accentMaterial)
         {
-            CreateBeacon(new Vector3(-13.3f, 1.2f, -9.3f), accentMaterial);
-            CreateBeacon(new Vector3(-13.3f, 1.2f, 9.3f), accentMaterial);
-            CreateBeacon(new Vector3(13.3f, 1.2f, -9.3f), accentMaterial);
-            CreateBeacon(new Vector3(13.3f, 1.2f, 9.3f), accentMaterial);
+            CreateBeacon(new Vector3(-7.6f, 1.2f, -5.6f), accentMaterial);
+            CreateBeacon(new Vector3(-7.6f, 1.2f, 5.6f), accentMaterial);
+            CreateBeacon(new Vector3(7.6f, 1.2f, -5.6f), accentMaterial);
+            CreateBeacon(new Vector3(7.6f, 1.2f, 5.6f), accentMaterial);
         }
 
         static void CreateBeacon(Vector3 position, Material accentMaterial)
@@ -207,7 +207,7 @@ namespace Unity.BossRoom.Gameplay.GameState
 
             var sources = new List<NavMeshBuildSource>();
             var markups = new List<NavMeshBuildMarkup>();
-            var bounds = new Bounds(k_Center, new Vector3(36f, 8f, 28f));
+            var bounds = new Bounds(k_Center, new Vector3(24f, 8f, 20f));
             NavMeshBuilder.CollectSources(
                 s_ArenaRoot.transform,
                 1 << groundLayer,

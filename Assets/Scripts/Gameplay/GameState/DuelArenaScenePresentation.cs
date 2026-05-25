@@ -248,7 +248,7 @@ namespace Unity.BossRoom.Gameplay.GameState
             if (orbitalFollow)
             {
                 SetField(orbitalFollow, "TargetOffset", new Vector3(0f, 1.1f, 0f));
-                SetField(orbitalFollow, "Radius", 22f);
+                SetField(orbitalFollow, "Radius", 14f);
                 SetAxisValue(orbitalFollow, "HorizontalAxis", 35f);
                 SetAxisValue(orbitalFollow, "VerticalAxis", 0.58f);
                 SetAxisValue(orbitalFollow, "RadialAxis", 1f);

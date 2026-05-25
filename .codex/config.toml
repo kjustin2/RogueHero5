@@ -1,0 +1,4 @@
+[mcp_servers.unity_mcp]
+command = "C:\\Users\\kjust\\.unity/relay\\relay_win.exe"
+args = ["--mcp", "--project-path", "E:/Storage/SAAS/RogueHero5"]
+enabled = true

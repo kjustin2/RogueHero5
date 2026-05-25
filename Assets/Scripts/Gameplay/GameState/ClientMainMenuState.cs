@@ -8,8 +8,10 @@ using Unity.BossRoom.Utils;
 using Unity.Services.Authentication;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using VContainer;
 using VContainer.Unity;
+using Avatar = Unity.BossRoom.Gameplay.Configuration.Avatar;
 
 namespace Unity.BossRoom.Gameplay.GameState
 {
@@ -38,6 +40,8 @@ namespace Unity.BossRoom.Gameplay.GameState
         UIProfileSelector m_UIProfileSelector;
         [SerializeField]
         UITooltipDetector m_UGSSetupTooltipDetector;
+        [SerializeField]
+        Avatar m_DefaultCampaignAvatar;
 
         [Inject]
         AuthenticationServiceFacade m_AuthServiceFacade;
@@ -56,24 +60,22 @@ namespace Unity.BossRoom.Gameplay.GameState
         {
             base.Awake();
 
-            m_SessionButton.interactable = false;
-            m_SessionUIMediator.Hide();
-
-            if (string.IsNullOrEmpty(Application.cloudProjectId))
-            {
-                OnSignInFailed();
-                return;
-            }
-
-            TrySignIn();
+            ConfigureSoloVerticalSliceMenu();
         }
 
         protected override void Configure(IContainerBuilder builder)
         {
             base.Configure(builder);
             builder.RegisterComponent(m_NameGenerationData);
-            builder.RegisterComponent(m_SessionUIMediator);
-            builder.RegisterComponent(m_IPUIMediator);
+            if (m_SessionUIMediator)
+            {
+                builder.RegisterComponent(m_SessionUIMediator);
+            }
+
+            if (m_IPUIMediator)
+            {
+                builder.RegisterComponent(m_IPUIMediator);
+            }
         }
 
         async void TrySignIn()
@@ -96,8 +98,15 @@ namespace Unity.BossRoom.Gameplay.GameState
         void OnAuthSignIn()
         {
             m_SessionButton.interactable = true;
-            m_UGSSetupTooltipDetector.enabled = false;
-            m_SignInSpinner.SetActive(false);
+            if (m_UGSSetupTooltipDetector)
+            {
+                m_UGSSetupTooltipDetector.enabled = false;
+            }
+
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(false);
+            }
 
             Debug.Log($"Signed in. Unity Player ID {AuthenticationService.Instance.PlayerId}");
 
@@ -121,20 +130,105 @@ namespace Unity.BossRoom.Gameplay.GameState
             }
         }
 
+        void ConfigureSoloVerticalSliceMenu()
+        {
+            if (m_SessionUIMediator)
+            {
+                m_SessionUIMediator.Hide();
+            }
+
+            if (m_IPUIMediator)
+            {
+                m_IPUIMediator.Hide();
+            }
+
+            if (m_UIProfileSelector)
+            {
+                m_UIProfileSelector.Hide();
+            }
+
+            SetActiveIfFound("1v1 Start Button", false);
+            SetActiveIfFound("Profile Button", false);
+            SetActiveIfFound("SessionPopup", false);
+            SetActiveIfFound("IPPopup", false);
+            SetActiveIfFound("SignInSpinner", false);
+            SetActiveIfFound("SettingsPanelCanvas", false);
+
+            SetTextIfFound("Title", "ROGUE HERO 5");
+            SetButtonText(m_SessionButton, "Start");
+
+            m_SessionButton.interactable = true;
+            if (m_UGSSetupTooltipDetector)
+            {
+                m_UGSSetupTooltipDetector.enabled = false;
+            }
+        }
+
+        static void SetActiveIfFound(string objectName, bool active)
+        {
+            var gameObject = GameObject.Find(objectName);
+            if (gameObject)
+            {
+                gameObject.SetActive(active);
+            }
+        }
+
+        static void SetTextIfFound(string objectName, string text)
+        {
+            var gameObject = GameObject.Find(objectName);
+            if (gameObject && gameObject.TryGetComponent(out TMP_Text label))
+            {
+                label.text = text;
+            }
+        }
+
+        static void SetButtonText(Button button, string text)
+        {
+            if (!button)
+            {
+                return;
+            }
+
+            var label = button.GetComponentInChildren<TMP_Text>(true);
+            if (label)
+            {
+                label.text = text;
+            }
+        }
+
         protected override void OnDestroy()
         {
-            m_ProfileManager.onProfileChanged -= OnProfileChanged;
+            if (m_ProfileManager != null)
+            {
+                m_ProfileManager.onProfileChanged -= OnProfileChanged;
+            }
+
             base.OnDestroy();
         }
 
         async void OnProfileChanged()
         {
-            m_SessionButton.interactable = false;
-            m_SignInSpinner.SetActive(true);
+            if (m_SessionButton)
+            {
+                m_SessionButton.interactable = false;
+            }
+
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(true);
+            }
+
             await m_AuthServiceFacade.SwitchProfileAndReSignInAsync(m_ProfileManager.Profile);
 
-            m_SessionButton.interactable = true;
-            m_SignInSpinner.SetActive(false);
+            if (m_SessionButton)
+            {
+                m_SessionButton.interactable = true;
+            }
+
+            if (m_SignInSpinner)
+            {
+                m_SignInSpinner.SetActive(false);
+            }
 
             Debug.Log($"Signed in. Unity Player ID {AuthenticationService.Instance.PlayerId}");
 
@@ -146,11 +240,18 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         public void OnStartClicked()
         {
-            m_SessionUIMediator.Hide();
-            m_IPUIMediator.Hide();
-            m_DuelSessionState.StartCampaign();
+            if (m_SessionUIMediator)
+            {
+                m_SessionUIMediator.Hide();
+            }
+
+            if (m_IPUIMediator)
+            {
+                m_IPUIMediator.Hide();
+            }
+
+            m_DuelSessionState.StartCampaign(m_DefaultCampaignAvatar);
             m_ConnectionManager.MaxConnectedPlayers = DuelSessionState.CampaignMaxPlayers;
-            m_SignInSpinner.SetActive(true);
             m_ConnectionManager.StartHostIp(m_NameGenerationData.GenerateName(), IPUIMediator.k_DefaultIP, IPUIMediator.k_DefaultPort);
         }
 
@@ -158,13 +259,23 @@ namespace Unity.BossRoom.Gameplay.GameState
         {
             m_DuelSessionState.StartPvp();
             m_ConnectionManager.MaxConnectedPlayers = DuelSessionState.PvpMaxPlayers;
-            m_SessionUIMediator.Hide();
-            m_IPUIMediator.Show();
+            if (m_SessionUIMediator)
+            {
+                m_SessionUIMediator.Hide();
+            }
+
+            if (m_IPUIMediator)
+            {
+                m_IPUIMediator.Show();
+            }
         }
 
         public void OnChangeProfileClicked()
         {
-            m_UIProfileSelector.Show();
+            if (m_UIProfileSelector)
+            {
+                m_UIProfileSelector.Show();
+            }
         }
     }
 }
