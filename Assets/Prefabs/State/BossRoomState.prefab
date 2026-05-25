@@ -79,6 +79,7 @@ MonoBehaviour:
   autoInjectGameObjects: []
   m_NetcodeHooks: {fileID: 1290852967062359934}
   m_PlayerPrefab: {fileID: 6009713983291384767, guid: 8237adf32a9b6de4892e6febe6b4bdef, type: 3}
+  m_CampaignBossPrefab: {fileID: 3688950541947916326, guid: 365e94337fd10fe4ebde1906df413ac7, type: 3}
   m_PlayerSpawnPoints:
   - {fileID: 6319832178442273571}
   - {fileID: 374135395555381814}

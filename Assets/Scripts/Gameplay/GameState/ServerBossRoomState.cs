@@ -38,6 +38,10 @@ namespace Unity.BossRoom.Gameplay.GameState
         private NetworkObject m_PlayerPrefab;
 
         [SerializeField]
+        [Tooltip("Campaign boss prefab for the 1v1 arena vertical slice. Make sure this is included in the NetworkManager's list of prefabs!")]
+        private NetworkObject m_CampaignBossPrefab;
+
+        [SerializeField]
         [Tooltip("A collection of locations for spawning players")]
         private Transform[] m_PlayerSpawnPoints;
 
@@ -48,6 +52,8 @@ namespace Unity.BossRoom.Gameplay.GameState
         bool m_DuelBossSceneLoadRequested;
         bool m_DuelInitialSpawnStarted;
         bool m_GameOverTriggered;
+        bool m_HasDuelCampaignBoss;
+        ulong m_DuelCampaignBossId;
 
         public override GameState ActiveState { get { return GameState.BossRoom; } }
 
@@ -55,8 +61,6 @@ namespace Unity.BossRoom.Gameplay.GameState
         private const float k_WinDelay = 7.0f;
         private const float k_LoseDelay = 2.5f;
         const string k_DuelBossSubscene = "DungeonBossRoom";
-        const string k_DuelArenaFloorPrefix = "boss_floor";
-        static readonly Vector3 k_FallbackDuelArenaCenterPosition = new Vector3(104f, 0f, 20f);
 
         /// <summary>
         /// Has the ServerBossRoomState already hit its initial spawn? (i.e. spawned players following load from character select).
@@ -94,6 +98,8 @@ namespace Unity.BossRoom.Gameplay.GameState
             m_DuelBossSceneLoadRequested = false;
             m_DuelInitialSpawnStarted = false;
             m_GameOverTriggered = false;
+            m_HasDuelCampaignBoss = false;
+            m_DuelCampaignBossId = 0;
             m_LifeStateChangedEventMessageSubscriber.Subscribe(OnLifeStateChangedEventMessage);
 
             NetworkManager.Singleton.OnConnectionEvent += OnConnectionEvent;
@@ -204,14 +210,16 @@ namespace Unity.BossRoom.Gameplay.GameState
 
             m_DuelInitialSpawnStarted = true;
             PrepareDuelSceneLoading();
+            DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetSceneByName(ActiveState.ToString()));
 
-            float nextWarningTime = Time.time + 8f;
-            while (!IsSceneLoaded(k_DuelBossSubscene))
+            var stopWaitingAt = Time.time + 3f;
+            float nextWarningTime = Time.time + 1.5f;
+            while (!IsSceneLoaded(k_DuelBossSubscene) && Time.time < stopWaitingAt)
             {
                 if (Time.time >= nextWarningTime)
                 {
-                    Debug.LogWarning($"Duel arena is still waiting for '{k_DuelBossSubscene}' before spawning players.");
-                    nextWarningTime = Time.time + 8f;
+                    Debug.LogWarning($"Duel arena is waiting for '{k_DuelBossSubscene}', but the runtime arena is already available.");
+                    nextWarningTime = Time.time + 1.5f;
                     if (!m_DuelBossSceneLoadRequested)
                     {
                         StartCoroutine(RequestDuelBossRoomLoad());
@@ -221,8 +229,14 @@ namespace Unity.BossRoom.Gameplay.GameState
                 yield return null;
             }
 
+            if (!IsSceneLoaded(k_DuelBossSubscene))
+            {
+                Debug.LogWarning($"Duel arena continuing without '{k_DuelBossSubscene}' because the runtime vertical-slice arena is ready.");
+            }
+
             yield return null;
 
+            DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetActiveScene());
             InitialSpawnDone = true;
             SpawnInitialPlayers(false);
             Debug.Log($"Duel arena spawned {NetworkManager.Singleton.ConnectedClients.Count} player(s) after arena scene ready={IsSceneLoaded(k_DuelBossSubscene)}.");
@@ -413,6 +427,8 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         void PrepareDuelSceneLoading()
         {
+            DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetActiveScene());
+
             if (m_DuelSceneLoadingPrepared)
             {
                 return;
@@ -486,10 +502,7 @@ namespace Unity.BossRoom.Gameplay.GameState
         {
             PrepareDuelSceneLoading();
 
-            if (!IsSceneLoaded(k_DuelBossSubscene))
-            {
-                return;
-            }
+            DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetActiveScene());
 
             foreach (var waveSpawner in FindObjectsByType<ServerWaveSpawner>(FindObjectsSortMode.None))
             {
@@ -519,7 +532,23 @@ namespace Unity.BossRoom.Gameplay.GameState
                     continue;
                 }
 
+                if (!m_HasDuelCampaignBoss)
+                {
+                    m_DuelCampaignBossId = serverCharacter.NetworkObjectId;
+                    m_HasDuelCampaignBoss = true;
+                }
+                else if (serverCharacter.NetworkObjectId != m_DuelCampaignBossId)
+                {
+                    serverCharacter.NetworkObject.Despawn(true);
+                    continue;
+                }
+
                 ConfigureCampaignBoss(serverCharacter);
+            }
+
+            if (m_DuelSessionState.IsCampaign)
+            {
+                EnsureCampaignBossSpawned();
             }
 
             PositionDuelPlayers();
@@ -549,6 +578,39 @@ namespace Unity.BossRoom.Gameplay.GameState
             m_ConfiguredCampaignBossIds.Add(boss.NetworkObjectId);
         }
 
+        void EnsureCampaignBossSpawned()
+        {
+            if (!m_DuelSessionState.IsCampaign || TryGetCampaignBoss(out _))
+            {
+                return;
+            }
+
+            if (!m_CampaignBossPrefab)
+            {
+                Debug.LogError("Duel campaign cannot spawn a boss because BossRoomState is missing m_CampaignBossPrefab.");
+                return;
+            }
+
+            var placement = GetDuelArenaPlacement();
+            var playerPosition = SampleArenaNavMeshPosition(placement.PlayerPosition, "campaign player preview");
+            var bossPosition = SampleArenaNavMeshPosition(placement.OpponentPosition, "campaign boss spawn");
+            var bossNetworkObject = Instantiate(m_CampaignBossPrefab, bossPosition, LookAtFlat(bossPosition, playerPosition));
+            var boss = bossNetworkObject.GetComponent<ServerCharacter>();
+            if (!boss)
+            {
+                Destroy(bossNetworkObject.gameObject);
+                Debug.LogError($"Duel campaign boss prefab '{m_CampaignBossPrefab.name}' does not have a ServerCharacter.");
+                return;
+            }
+
+            bossNetworkObject.Spawn(true);
+            m_DuelCampaignBossId = bossNetworkObject.NetworkObjectId;
+            m_HasDuelCampaignBoss = true;
+            TeleportDuelCharacter(boss, bossPosition, LookAtFlat(bossPosition, playerPosition));
+            ConfigureCampaignBoss(boss);
+            Debug.Log($"Duel campaign spawned fallback boss '{bossNetworkObject.name}' at {bossPosition} using {placement.Source}.");
+        }
+
         void PositionDuelPlayers()
         {
             if (m_DuelPlayersPositioned)
@@ -570,13 +632,15 @@ namespace Unity.BossRoom.Gameplay.GameState
                 }
 
                 var arenaPlacement = GetDuelArenaPlacement();
-                var playerPosition = SampleArenaNavMeshPosition(arenaPlacement.LeftPosition, "campaign player");
-                var bossPosition = SampleArenaNavMeshPosition(arenaPlacement.RightPosition, "campaign boss");
+                var playerPosition = SampleArenaNavMeshPosition(arenaPlacement.PlayerPosition, "campaign player");
+                var bossPosition = SampleArenaNavMeshPosition(arenaPlacement.OpponentPosition, "campaign boss");
 
-                boss.physicsWrapper.Transform.SetPositionAndRotation(
+                TeleportDuelCharacter(
+                    boss,
                     bossPosition,
                     LookAtFlat(bossPosition, playerPosition));
-                playerCharacters[0].physicsWrapper.Transform.SetPositionAndRotation(
+                TeleportDuelCharacter(
+                    playerCharacters[0],
                     playerPosition,
                     LookAtFlat(playerPosition, bossPosition));
                 Debug.Log(
@@ -586,10 +650,10 @@ namespace Unity.BossRoom.Gameplay.GameState
             else if (m_DuelSessionState.IsPvp)
             {
                 var arenaPlacement = GetDuelArenaPlacement();
-                var leftPosition = SampleArenaNavMeshPosition(arenaPlacement.LeftPosition, "PvP left player");
-                var rightPosition = SampleArenaNavMeshPosition(arenaPlacement.RightPosition, "PvP right player");
-                playerCharacters[0].physicsWrapper.Transform.SetPositionAndRotation(leftPosition, LookAtFlat(leftPosition, rightPosition));
-                playerCharacters[1].physicsWrapper.Transform.SetPositionAndRotation(rightPosition, LookAtFlat(rightPosition, leftPosition));
+                var leftPosition = SampleArenaNavMeshPosition(arenaPlacement.PlayerPosition, "PvP left player");
+                var rightPosition = SampleArenaNavMeshPosition(arenaPlacement.OpponentPosition, "PvP right player");
+                TeleportDuelCharacter(playerCharacters[0], leftPosition, LookAtFlat(leftPosition, rightPosition));
+                TeleportDuelCharacter(playerCharacters[1], rightPosition, LookAtFlat(rightPosition, leftPosition));
                 Debug.Log($"Duel PvP positioned players at {leftPosition} and {rightPosition} using {arenaPlacement.Source}.");
             }
 
@@ -598,6 +662,22 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         bool TryGetCampaignBoss(out ServerCharacter boss)
         {
+            if (m_HasDuelCampaignBoss &&
+                NetworkManager.Singleton &&
+                NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(m_DuelCampaignBossId, out var bossNetworkObject) &&
+                bossNetworkObject &&
+                bossNetworkObject.TryGetComponent(out boss) &&
+                boss &&
+                boss.IsNpc &&
+                boss.CharacterType == CharacterTypeEnum.ImpBoss &&
+                boss.LifeState != LifeState.Dead)
+            {
+                return true;
+            }
+
+            m_HasDuelCampaignBoss = false;
+            m_DuelCampaignBossId = 0;
+
             foreach (var serverCharacter in FindObjectsByType<ServerCharacter>(FindObjectsSortMode.None))
             {
                 if (serverCharacter && serverCharacter.IsNpc &&
@@ -605,6 +685,8 @@ namespace Unity.BossRoom.Gameplay.GameState
                     serverCharacter.NetworkObject && serverCharacter.NetworkObject.IsSpawned)
                 {
                     boss = serverCharacter;
+                    m_DuelCampaignBossId = serverCharacter.NetworkObjectId;
+                    m_HasDuelCampaignBoss = true;
                     return true;
                 }
             }
@@ -642,68 +724,25 @@ namespace Unity.BossRoom.Gameplay.GameState
             return position;
         }
 
-        static DuelArenaPlacement GetDuelArenaPlacement()
+        static DuelArenaRuntimeScaffold.DuelArenaPlacement GetDuelArenaPlacement()
         {
-            if (TryGetDuelArenaFloorBounds(out var bounds))
-            {
-                var center = new Vector3(bounds.center.x, 0f, bounds.center.z);
-                var spacing = Mathf.Clamp(bounds.extents.x * 0.45f, 8f, 16f);
-                return new DuelArenaPlacement(
-                    center,
-                    center + Vector3.left * spacing,
-                    center + Vector3.right * spacing,
-                    $"{k_DuelArenaFloorPrefix} bounds center={center}, spacing={spacing:0.0}");
-            }
-
-            return new DuelArenaPlacement(
-                k_FallbackDuelArenaCenterPosition,
-                k_FallbackDuelArenaCenterPosition + Vector3.left * 10f,
-                k_FallbackDuelArenaCenterPosition + Vector3.right * 10f,
-                $"fallback arena center {k_FallbackDuelArenaCenterPosition}");
+            DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetActiveScene());
+            return DuelArenaRuntimeScaffold.Placement;
         }
 
-        static bool TryGetDuelArenaFloorBounds(out Bounds bounds)
+        static void TeleportDuelCharacter(ServerCharacter character, Vector3 position, Quaternion rotation)
         {
-            var hasBounds = false;
-            bounds = default;
-
-            foreach (var renderer in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            if (!character)
             {
-                if (!renderer.enabled ||
-                    !renderer.gameObject.activeInHierarchy ||
-                    !renderer.name.StartsWith(k_DuelArenaFloorPrefix, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                if (!hasBounds)
-                {
-                    bounds = renderer.bounds;
-                    hasBounds = true;
-                }
-                else
-                {
-                    bounds.Encapsulate(renderer.bounds);
-                }
+                return;
             }
 
-            return hasBounds;
-        }
-
-        readonly struct DuelArenaPlacement
-        {
-            public DuelArenaPlacement(Vector3 center, Vector3 leftPosition, Vector3 rightPosition, string source)
+            if (character.Movement)
             {
-                Center = center;
-                LeftPosition = leftPosition;
-                RightPosition = rightPosition;
-                Source = source;
+                character.Movement.Teleport(position);
             }
 
-            public Vector3 Center { get; }
-            public Vector3 LeftPosition { get; }
-            public Vector3 RightPosition { get; }
-            public string Source { get; }
+            character.physicsWrapper.Transform.SetPositionAndRotation(position, rotation);
         }
 
         static Quaternion LookAtFlat(Vector3 from, Vector3 to)

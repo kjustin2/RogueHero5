@@ -1,8 +1,10 @@
 using System;
 using System.IO;
+using Unity.BossRoom.Gameplay.GameState;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
 namespace Unity.BossRoom.Editor
@@ -42,7 +44,8 @@ namespace Unity.BossRoom.Editor
 
             var arenaRoot = RequireObject("BossRoom");
             var staticObjects = RequireObject("BossRoomStaticNetworkObjects");
-            var bossSpawner = RequireObject("NetworkObjectSpawner(ImpBoss)");
+            var bossState = RequireObject("BossRoomState");
+            var runtimeArena = DuelArenaRuntimeScaffold.EnsureArena(SceneManager.GetSceneByName("BossRoom"));
 
             var renderers = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
             var visibleRendererCount = 0;
@@ -72,14 +75,53 @@ namespace Unity.BossRoom.Editor
                 throw new InvalidOperationException($"Expected a populated arena, found only {visibleRendererCount} visible mesh renderers.");
             }
 
-            if (!visibleBounds.Contains(bossSpawner.transform.position))
+            var placement = DuelArenaRuntimeScaffold.Placement;
+            RequireNavMesh(placement.PlayerPosition, "player");
+            RequireNavMesh(placement.OpponentPosition, "opponent");
+
+            if (!visibleBounds.Contains(runtimeArena.position))
             {
-                throw new InvalidOperationException($"ImpBoss spawn anchor {bossSpawner.transform.position} is outside visible arena bounds {visibleBounds}.");
+                throw new InvalidOperationException($"Runtime arena {runtimeArena.position} is outside visible arena bounds {visibleBounds}.");
+            }
+
+            var campaignBossPrefab = FindSerializedPropertyOnComponents(bossState, "m_CampaignBossPrefab");
+            if (campaignBossPrefab == null || campaignBossPrefab.objectReferenceValue == null)
+            {
+                throw new MissingReferenceException("BossRoomState is missing m_CampaignBossPrefab for campaign duel boss spawning.");
             }
 
             Debug.Log(
                 $"Duel arena verification passed. ArenaRoot={arenaRoot.name}, StaticRoot={staticObjects.name}, " +
-                $"ImpBossSpawn={bossSpawner.transform.position}, VisibleRenderers={visibleRendererCount}, Bounds={visibleBounds}.");
+                $"RuntimeArena={runtimeArena.position}, CampaignBossPrefab={campaignBossPrefab.objectReferenceValue.name}, " +
+                $"VisibleRenderers={visibleRendererCount}, Bounds={visibleBounds}.");
+        }
+
+        static void RequireNavMesh(Vector3 position, string label)
+        {
+            if (!NavMesh.SamplePosition(position, out _, 1.5f, NavMesh.AllAreas))
+            {
+                throw new InvalidOperationException($"Runtime duel arena has no NavMesh for {label} near {position}.");
+            }
+        }
+
+        static SerializedProperty FindSerializedPropertyOnComponents(GameObject gameObject, string propertyName)
+        {
+            foreach (var component in gameObject.GetComponents<MonoBehaviour>())
+            {
+                if (!component)
+                {
+                    continue;
+                }
+
+                var serializedObject = new SerializedObject(component);
+                var property = serializedObject.FindProperty(propertyName);
+                if (property != null)
+                {
+                    return property;
+                }
+            }
+
+            return null;
         }
 
         static void RequireSceneLoaded(string sceneName)

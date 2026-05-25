@@ -1,3 +1,4 @@
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -7,6 +8,7 @@ namespace Unity.BossRoom.Gameplay.GameState
     static class DuelArenaScenePresentation
     {
         const string k_DuelBossSubscene = "DungeonBossRoom";
+        const string k_BossRoomScene = "BossRoom";
         const int k_WindowsHighQualityIndex = 2;
         const string k_RuntimeFillLightName = "DuelArenaRuntimeFillLight";
         static bool s_DuelArenaLoaded;
@@ -29,7 +31,7 @@ namespace Unity.BossRoom.Gameplay.GameState
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
                 var scene = SceneManager.GetSceneAt(i);
-                if (scene.isLoaded && scene.name == k_DuelBossSubscene)
+                if (scene.isLoaded && (scene.name == k_BossRoomScene || scene.name == k_DuelBossSubscene))
                 {
                     OnSceneLoaded(scene, LoadSceneMode.Additive);
                 }
@@ -38,6 +40,16 @@ namespace Unity.BossRoom.Gameplay.GameState
 
         static void OnSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
         {
+            if (scene.name == k_BossRoomScene)
+            {
+                s_DuelArenaLoaded = true;
+                EnsurePlayableQualityProfile();
+                DuelArenaRuntimeScaffold.EnsureArena(scene);
+                DisableGameplayCameraOcclusion();
+                FrameRuntimeArenaCamera(scene);
+                return;
+            }
+
             if (scene.name != k_DuelBossSubscene)
             {
                 return;
@@ -46,7 +58,9 @@ namespace Unity.BossRoom.Gameplay.GameState
             s_DuelArenaLoaded = true;
             EnsurePlayableQualityProfile();
             SceneManager.SetActiveScene(scene);
+            DuelArenaRuntimeScaffold.EnsureArena(scene);
             DisableGameplayCameraOcclusion();
+            FrameRuntimeArenaCamera(scene);
 
             var hasBounds = TryGetSceneRendererBounds(scene, out var visibleRendererCount, out var visibleBounds, out var layerSummary);
             EnsureArenaLighting(scene, hasBounds ? visibleBounds : default);
@@ -205,6 +219,7 @@ namespace Unity.BossRoom.Gameplay.GameState
 
             camera.useOcclusionCulling = false;
             camera.cullingMask = ~0;
+            FrameRuntimeArenaCamera(camera.gameObject.scene);
         }
 
         static void DisableGameplayCameraOcclusion()
@@ -213,6 +228,93 @@ namespace Unity.BossRoom.Gameplay.GameState
             {
                 camera.useOcclusionCulling = false;
                 camera.cullingMask = ~0;
+            }
+        }
+
+        static void FrameRuntimeArenaCamera(Scene scene)
+        {
+            var cameraGameObject = GameObject.FindGameObjectWithTag("CMCamera");
+            if (!cameraGameObject)
+            {
+                return;
+            }
+
+            var anchor = DuelArenaRuntimeScaffold.EnsureCameraAnchor(scene);
+            var cinemachineCamera = cameraGameObject.GetComponent("CinemachineCamera");
+            SetProperty(cinemachineCamera, "Follow", anchor);
+            SetProperty(cinemachineCamera, "LookAt", anchor);
+
+            var orbitalFollow = cameraGameObject.GetComponent("CinemachineOrbitalFollow");
+            if (orbitalFollow)
+            {
+                SetField(orbitalFollow, "TargetOffset", new Vector3(0f, 1.1f, 0f));
+                SetField(orbitalFollow, "Radius", 22f);
+                SetAxisValue(orbitalFollow, "HorizontalAxis", 35f);
+                SetAxisValue(orbitalFollow, "VerticalAxis", 0.58f);
+                SetAxisValue(orbitalFollow, "RadialAxis", 1f);
+            }
+        }
+
+        static void SetProperty(Component component, string propertyName, object value)
+        {
+            if (!component)
+            {
+                return;
+            }
+
+            var property = component.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+            if (property != null && property.CanWrite)
+            {
+                property.SetValue(component, value);
+            }
+        }
+
+        static void SetField(Component component, string fieldName, object value)
+        {
+            if (!component)
+            {
+                return;
+            }
+
+            var field = component.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public);
+            if (field != null)
+            {
+                field.SetValue(component, value);
+            }
+        }
+
+        static void SetAxisValue(Component component, string fieldName, float value)
+        {
+            if (!component)
+            {
+                return;
+            }
+
+            var axisField = component.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public);
+            if (axisField == null)
+            {
+                return;
+            }
+
+            var axis = axisField.GetValue(component);
+            if (axis == null)
+            {
+                return;
+            }
+
+            var valueField = axis.GetType().GetField("Value", BindingFlags.Instance | BindingFlags.Public);
+            if (valueField != null)
+            {
+                valueField.SetValue(axis, value);
+                axisField.SetValue(component, axis);
+                return;
+            }
+
+            var valueProperty = axis.GetType().GetProperty("Value", BindingFlags.Instance | BindingFlags.Public);
+            if (valueProperty != null && valueProperty.CanWrite)
+            {
+                valueProperty.SetValue(axis, value);
+                axisField.SetValue(component, axis);
             }
         }
     }
